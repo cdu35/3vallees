@@ -1,0 +1,63 @@
+name: Build cached GeoJSON (3 Vallées)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Overpass data
+        run: |
+          read -r -d '' Q <<'EOF'
+          [out:json][timeout:180];
+          (
+            way["aerialway"](45.19,6.43,45.50,6.78);
+            node["aerialway"="station"](45.19,6.43,45.50,6.78);
+            node["place"]["name"~"^(Courchevel|Méribel|Les Menuires|Val Thorens|La Tania|Brides-les-Bains|Saint-Martin-de-Belleville|Orelle)$"](45.19,6.43,45.50,6.78);
+            way["place"]["name"~"^(Courchevel|Méribel|Les Menuires|Val Thorens|La Tania|Brides-les-Bains|Saint-Martin-de-Belleville|Orelle)$"](45.19,6.43,45.50,6.78);
+            relation["place"]["name"~"^(Courchevel|Méribel|Les Menuires|Val Thorens|La Tania|Brides-les-Bains|Saint-Martin-de-Belleville|Orelle)$"](45.19,6.43,45.50,6.78);
+          );
+          out center tags; >; out skel qt;
+          EOF
+          curl -sS --fail -X POST -H 'Content-Type: text/plain' --data "$Q" https://overpass-api.de/api/interpreter > overpass.json
+
+      - name: Convert to GeoJSON
+        run: |
+          python - << 'PY'
+          import json, os
+          data=json.load(open('overpass.json','r'))
+          nodes={e['id']:(e['lon'],e['lat']) for e in data.get('elements',[]) if e['type']=='node'}
+          feats=[]
+          for el in data.get('elements',[]):
+            tags=el.get('tags',{})
+            if el['type']=='way' and 'aerialway' in tags:
+              coords=[nodes.get(n) for n in el.get('nodes',[]) if n in nodes]
+              if len(coords)>=2:
+                feats.append({'type':'Feature','geometry':{'type':'LineString','coordinates':[[x,y] for x,y in coords]},'properties':{'id':el['id'],**tags}})
+            elif el['type']=='node' and tags.get('aerialway')=='station':
+              feats.append({'type':'Feature','geometry':{'type':'Point','coordinates':[el['lon'],el['lat']]},'properties':{'id':el['id'],**tags}})
+            else:
+              if tags.get('name') in ('Courchevel','Méribel','Les Menuires','Val Thorens','La Tania','Brides-les-Bains','Saint-Martin-de-Belleville','Orelle') and tags.get('place'):
+                lon=el.get('lon') or (el.get('center') or {}).get('lon')
+                lat=el.get('lat') or (el.get('center') or {}).get('lat')
+                if lon and lat:
+                  feats.append({'type':'Feature','geometry':{'type':'Point','coordinates':[lon,lat]},'properties':{'id':el['id'],**tags,'feature_type':'resort'}})
+          gj={'type':'FeatureCollection','features':feats}
+          os.makedirs('data',exist_ok=True)
+          json.dump(gj, open('data/remontees_3vallees.geojson','w'), ensure_ascii=False)
+          print('features:', len(feats))
+          PY
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/remontees_3vallees.geojson
+          git commit -m "chore: refresh cached GeoJSON" || echo "No changes"
+          git push
