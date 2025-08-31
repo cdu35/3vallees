@@ -1,30 +1,17 @@
-# Carte interactive – Les 3 Vallées (OpenSnowMap / OpenStreetMap)
+# 3 Vallées – Carte (cache GeoJSON) + MapLibre
 
-Cette petite app statique affiche les pistes et remontées mécaniques des **3 Vallées** via :
+Deux front‑ends :
+- `index.html` (Leaflet raster + overlay OpenSnowMap) – lit uniquement `data/remontees_3vallees.geojson`.
+- `index-maplibre.html` (MapLibre GL vector + OpenFreeMap + overlay OpenSnowMap) – lit le même cache.
 
-- **Calque de pistes OpenSnowMap** (`https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png`).
-- **Données en direct OpenStreetMap** (Overpass API) pour les remontées `aerialway=*` et stations.
+## Déploiement GitHub Pages
+1. Pousser ces fichiers sur `main`.
+2. **Settings → Pages** → Deploy from a branch → `main` / `/root`.
+3. Ouvrir `…/index.html` ou `…/index-maplibre.html`.
 
-## Déploiement rapide
+## Mettre à jour le cache (Overpass → GeoJSON)
+- **Actions → Build cached GeoJSON (3 Vallées) → Run workflow** (ou attendre la planification chaque lundi 03:00 UTC).
 
-### Option A — GitHub Pages (recommandé)
-1. Créez un dépôt GitHub vide (public ou privé).
-2. Uploadez `index.html` (et ce README).
-3. Dans **Settings → Pages**, choisissez **Deploy from a branch**, branche `main`, dossier `/root`.
-4. Patientez 1–2 min, l’URL sera du type `https://<votre-user>.github.io/<repo>/`.
-
-### Option B — Netlify Drop
-- Allez sur https://app.netlify.com/drop et glissez le dossier. Netlify fournit une URL publique.
-
-### Option C — Vercel
-- Importez le dépôt GitHub sur https://vercel.com/ → déploiement statique instantané.
-
-## Points importants (licences/usage)
-- **OpenSnowMap (tuiles)** : n’utilisez pas de **téléchargement massif**, fournissez une **attribution** et un **referer** valide. Pour des usages soutenus, préférez l’auto‑hébergement des tuiles/MBTiles. Cf. https://www.opensnowmap.org/iframes/about.eng.html
-- **OpenStreetMap (fond & données)** : crédit « © OpenStreetMap contributors ». La **politique d’usage des tuiles** OSM (si vous utilisez `tile.openstreetmap.org`) impose des limites ; pour la production, vous pouvez utiliser un fournisseur tiers ou votre propre serveur. Cf. https://operations.osmfoundation.org/policies/tiles/
-
-## Ajustements
-- Modifiez la **BBOX** dans `index.html` pour élargir/réduire l’emprise.
-- Ajoutez des champs supplémentaires dans les pop‑ups (ex: `aerialway:capacity`, `duration`, `operator`…).
-
-Bon ski !
+## Licences
+- OpenStreetMap (ODbL) – © Contributors
+- OpenSnowMap tiles (pistes) – CC‑BY‑SA, referer valide, pas de bulk download

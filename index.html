@@ -2,190 +2,79 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <title>Les 3 Vallées – Remontées mécaniques + stations (OpenSnowMap / OSM)</title>
+  <title>Les 3 Vallées – Remontées mécaniques (cache GeoJSON)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhI+bQXni3dY9VmtwZ8p2N2z8d+R0aoXWZpI="
-    crossorigin=""
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
     html, body, #map { height: 100%; margin: 0; }
     .legend { background: white; padding: .5rem .75rem; border-radius: 6px; line-height: 1.4; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
-    .export-btn {
-      position: absolute; top: 12px; left: 12px; z-index: 1000;
-      background:#1976d2;color:#fff;border:none;border-radius:6px;padding:.5rem .75rem;cursor:pointer
-    }
-    .export-btn:hover { background:#125aa3; }
-    .station-label { font-weight: 600; }
-    .notice { position:absolute; right:12px; top:12px; z-index:1000; background:rgba(255,255,255,.95); padding:.5rem .75rem; border-radius:6px; max-width: 320px; box-shadow: 0 1px 3px rgba(0,0,0,.2); font-size: 13px;}
+    .export-btn { position:absolute; top:12px; left:12px; z-index:1000; background:#1976d2; color:#fff; border:none; border-radius:6px; padding:.5rem .75rem; cursor:pointer }
   </style>
 </head>
 <body>
-  <button id="exportBtn" class="export-btn" title="Exporter au format GeoJSON">⬇️ Exporter les remontées (GeoJSON)</button>
-  <div class="notice">
-    <div><strong>Les 3 Vallées</strong> – Pistes & remontées (OpenSnowMap/OSM)</div>
-    <div style="margin-top:.25rem">Le calque <em>Pistes OpenSnowMap</em> nécessite une connexion Internet et un <em>referer</em> valide. Si la carte ne s'affiche pas, rechargez la page ou essayez plus tard.</div>
-  </div>
+  <button id="exportBtn" class="export-btn">⬇️ Exporter (GeoJSON)</button>
   <div id="map"></div>
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="">
-  </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
-    const map = L.map('map', { center: [45.35, 6.57], zoom: 12 });
+    const map = L.map('map', { center:[45.35,6.57], zoom:12 });
 
-    const osmStd = L.tileLayer(
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19,
-        attribution:'© OpenStreetMap contributors | <a href="https://www.openstreetmap.org/copyright">ODbL</a>' }
-    ).addTo(map);
-
-    const osmPistes = L.tileLayer(
-      'https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png',
-      { maxZoom: 18, opacity: 0.85,
-        attribution:'Tiles © <a href="https://www.opensnowmap.org/iframes/about.eng.html">OpenSnowMap.org</a> (CC‑BY‑SA) | Data © OpenStreetMap contributors (ODbL)'}
-    ).addTo(map);
-
-    L.control.layers(
-      { "OpenStreetMap": osmStd },
-      { "Pistes OpenSnowMap": osmPistes }
-    ).addTo(map);
-
-    const aerialwayStyle = (type) => {
-      const colors = {
-        cable_car: '#d73027', funitel: '#8c510a', gondola: '#f46d43', mixed_lift: '#fdae61',
-        chair_lift: '#4575b4', drag_lift: '#7b3294', t_bar: '#7b3294', j_bar: '#a6d96a',
-        platter: '#66bd63', magic_carpet: '#1a9850', rope_tow: '#999999', zip_line: '#313131'
-      };
-      const color = colors[type] || '#222';
-      return { color, weight: 3, opacity: 0.9 };
-    };
-
-    const legend = L.control({ position: 'bottomleft' });
-    legend.onAdd = () => {
-      const div = L.DomUtil.create('div', 'legend');
-      div.innerHTML = `
-        <strong>Types de remontées</strong><br/>
-        <span style="color:#d73027">—</span> Téléphérique<br/>
-        <span style="color:#8c510a">—</span> Funitel<br/>
-        <span style="color:#f46d43">—</span> Télécabine (gondola)<br/>
-        <span style="color:#4575b4">—</span> Télésiège<br/>
-        <span style="color:#7b3294">—</span> Tire‑fesses / T‑bar / J‑bar<br/>
-        <span style="color:#66bd63">—</span> Platter<br/>
-        <span style="color:#1a9850">—</span> Tapis roulant<br/>
-        <span style="color:#999">—</span> Rope tow`;
-      return div;
-    };
-    legend.addTo(map);
-
-    const BBOX = [45.19, 6.43, 45.50, 6.78];
-    const STATION_REGEX = '^(Courchevel|Méribel|Les Menuires|Val Thorens|La Tania|Brides-les-Bains|Saint-Martin-de-Belleville|Orelle)$';
-
-    const overpassQuery = `
-      [out:json][timeout:120];
-      (
-        way["aerialway"](${BBOX.join(",")});
-        node["aerialway"="station"](${BBOX.join(",")});
-        node["place"]["name"~"${STATION_REGEX}"](${BBOX.join(",")});
-        way["place"]["name"~"${STATION_REGEX}"](${BBOX.join(",")});
-        relation["place"]["name"~"${STATION_REGEX}"](${BBOX.join(",")});
-      );
-      out center tags;
-      >; out skel qt;`;
-
-    const liftsLayer = L.geoJSON(null).addTo(map);
-    const resortsLayer = L.geoJSON(null, {
-      pointToLayer: (f, latlng) => L.marker(latlng, { title: f.properties.name }).bindPopup(`<div class="station-label">🏔️ ${f.properties.name}</div>`),
-      onEachFeature: (f, layer) => { if (f.properties && f.properties.name) layer.bindTooltip(f.properties.name); }
+    const osmStd = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors | ODbL'
     }).addTo(map);
 
-    function overpassToGeoJSON(data) {
-      const nodes = new Map();
-      (data.elements || []).filter(e => e.type === 'node').forEach(n => nodes.set(n.id, [n.lon, n.lat]));
-      const features = [];
-      (data.elements || []).forEach(el => {
-        if (el.type === 'way' && el.tags && el.tags.aerialway) {
-          const coords = (el.nodes || []).map(id => nodes.get(id)).filter(Boolean);
-          if (coords.length >= 2) {
-            features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: { id: el.id, ...el.tags } });
+    const pistes = L.tileLayer('https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      opacity: .85,
+      attribution: 'Tiles © OpenSnowMap.org (CC‑BY‑SA) | Data © OSM contributors (ODbL)'
+    }).addTo(map);
+
+    const liftsLayer = L.geoJSON(null).addTo(map);
+    const resortsLayer = L.geoJSON(null).addTo(map);
+
+    function aerialwayStyle(type){
+      const colors = { cable_car:'#d73027', funitel:'#8c510a', gondola:'#f46d43', mixed_lift:'#fdae61', chair_lift:'#4575b4', drag_lift:'#7b3294', t_bar:'#7b3294', j_bar:'#a6d96a', platter:'#66bd63', magic_carpet:'#1a9850', rope_tow:'#999' };
+      return { color: colors[type]||'#222', weight:3, opacity:.9 };
+    }
+
+    fetch('data/remontees_3vallees.geojson', { cache:'no-cache' })
+      .then(r=>r.json())
+      .then(gj => {
+        const lifts = gj.features.filter(f=>f.properties && f.properties.aerialway);
+        const resorts = gj.features.filter(f=>f.properties && f.properties.feature_type==='resort');
+
+        lifts.forEach(f=>{
+          if (f.geometry.type==='Point') {
+            L.geoJSON(f, { pointToLayer:(feat,latlng)=>L.circleMarker(latlng,{radius:6,color:'#000',fillColor:'#fff',weight:2,fillOpacity:1}), onEachFeature:bindPopup }).addTo(liftsLayer);
+          } else {
+            L.geoJSON(f, { style:aerialwayStyle(f.properties.aerialway), onEachFeature:bindPopup }).addTo(liftsLayer);
           }
-        } else if (el.type === 'node' && el.tags && el.tags.aerialway === 'station') {
-          features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [el.lon, el.lat] }, properties: { id: el.id, ...el.tags } });
-        } else if (el.tags && el.tags.name && el.tags.place && /^(Courchevel|Méribel|Les Menuires|Val Thorens|La Tania|Brides-les-Bains|Saint-Martin-de-Belleville|Orelle)$/.test(el.tags.name)) {
-          const lon = el.lon || (el.center && el.center.lon);
-          const lat = el.lat || (el.center && el.center.lat);
-          if (lat && lon) {
-            features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { id: el.id, ...el.tags, feature_type: 'resort' } });
-          }
-        }
-      });
-      return { type: 'FeatureCollection', features };
+        });
+        resortsLayer.addData({ type:'FeatureCollection', features:resorts });
+        const group = L.featureGroup([liftsLayer,resortsLayer]);
+        if (group.getLayers().length) map.fitBounds(group.getBounds(),{padding:[20,20]});
+
+        document.getElementById('exportBtn').onclick = () => {
+          const blob = new Blob([JSON.stringify(gj,null,2)], {type:'application/json'});
+          const url = URL.createObjectURL(blob); const a = document.createElement('a');
+          a.href = url; a.download = 'remontees_3vallees.geojson'; a.click(); URL.revokeObjectURL(url);
+        };
+      })
+      .catch(err=>{ console.error(err); alert('Impossible de charger data/remontees_3vallees.geojson'); });
+
+    function bindPopup(feat, layer){
+      const p = feat.properties||{}; const Ls=[];
+      if(p.name) Ls.push(`<strong>${p.name}</strong>`);
+      if(p.aerialway) Ls.push(`Type : <code>${p.aerialway}</code>`);
+      if(p["aerialway:capacity"]) Ls.push(`Capacité : ${p["aerialway:capacity"]} pers/h`);
+      if(p["aerialway:occupancy"]) Ls.push(`Occupants : ${p["aerialway:occupancy"]}`);
+      if(p.duration) Ls.push(`Durée : ${p.duration}`);
+      if(p.operator) Ls.push(`Exploitant : ${p.operator}`);
+      if(p.ref) Ls.push(`Réf. : ${p.ref}`);
+      if(Ls.length) layer.bindPopup(Ls.join('<br/>'));
     }
 
-    function styleFeature(feat) {
-      if (feat.geometry.type === 'LineString') {
-        const t = (feat.properties.aerialway || '').trim();
-        return aerialwayStyle(t);
-      }
-      if (feat.geometry.type === 'Point' && feat.properties.aerialway === 'station') {
-        return { radius: 6, color: '#000', fillColor: '#fff', weight: 2, fillOpacity: 1 };
-      }
-      return {};
-    }
-
-    function onEachFeature(feat, layer) {
-      const p = feat.properties || {};
-      const lines = [];
-      if (p.name) lines.push(`<strong>${p.name}</strong>`);
-      if (p.aerialway) lines.push(`Type : <code>${p.aerialway}</code>`);
-      if (p["aerialway:capacity"]) lines.push(`Capacité : ${p["aerialway:capacity"]} pers/h`);
-      if (p["aerialway:occupancy"]) lines.push(`Occupants par cabine : ${p["aerialway:occupancy"]}`);
-      if (p.duration) lines.push(`Durée : ${p.duration}`);
-      if (p.operator) lines.push(`Exploitant : ${p.operator}`);
-      if (p.ref) lines.push(`Réf. : ${p.ref}`);
-      if (lines.length) layer.bindPopup(lines.join('<br/>'));
-    }
-
-    fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: overpassQuery
-    })
-    .then(r => r.json())
-    .then(json => {
-      const gj = overpassToGeoJSON(json);
-      const resortFeatures = gj.features.filter(f => f.properties.feature_type === 'resort');
-      const liftFeatures = gj.features.filter(f => f.properties.aerialway);
-
-      resortsLayer.addData({ type: 'FeatureCollection', features: resortFeatures });
-
-      liftFeatures.forEach(f => {
-        if (f.geometry.type === 'Point') {
-          L.geoJSON(f, { pointToLayer: (feat, latlng) => L.circleMarker(latlng, styleFeature(feat)), onEachFeature }).addTo(liftsLayer);
-        } else {
-          L.geoJSON(f, { style: styleFeature(f), onEachFeature }).addTo(liftsLayer);
-        }
-      });
-
-      const all = L.featureGroup([resortsLayer, liftsLayer]);
-      map.fitBounds(all.getBounds(), { padding: [20, 20] });
-
-      document.getElementById('exportBtn').onclick = () => {
-        const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: liftFeatures }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'remontees_3vallees.geojson'; a.click();
-        URL.revokeObjectURL(url);
-      };
-    })
-    .catch(err => {
-      console.error('Overpass error', err);
-      alert("Échec de la récupération des données Overpass. Réessayez plus tard.");
-    });
-
-    map.attributionControl.addAttribution('Ski overlay : <a href="https://www.opensnowmap.org/iframes/about.eng.html">OpenSnowMap</a> | Respecter la <a href="https://operations.osmfoundation.org/policies/tiles/">politique d’usage des tuiles</a>');
+    map.attributionControl.addAttribution('Ski overlay : OpenSnowMap | Respecter la politique d'usage des tuiles');
   </script>
 </body>
 </html>

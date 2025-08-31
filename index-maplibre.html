@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <title>Les 3 Vallées – MapLibre (vector) + OpenSnowMap + cache GeoJSON</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.css" rel="stylesheet"/>
+  <style> html, body, #map { height:100%; margin:0 } .toolbar{position:absolute;left:12px;top:12px;z-index:2} .btn{background:#1976d2;color:#fff;border:none;border-radius:6px;padding:.5rem .75rem;cursor:pointer;margin-right:.25rem} </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" id="export">⬇️ Export GeoJSON</button>
+  </div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.js"></script>
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [6.57, 45.35],
+      zoom: 11
+    });
+    map.addControl(new maplibregl.NavigationControl());
+
+    let cachedData = null;
+
+    map.on('load', async () => {
+      map.addSource('pistes', {
+        type: 'raster',
+        tiles: [ 'https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png' ],
+        tileSize: 256,
+        attribution: 'Tiles © OpenSnowMap.org (CC‑BY‑SA) | Data © OpenStreetMap contributors (ODbL)'
+      });
+      map.addLayer({ id:'pistes-layer', type:'raster', source:'pistes', paint:{ 'raster-opacity': 0.85 } });
+
+      const resp = await fetch('data/remontees_3vallees.geojson', { cache:'no-cache' });
+      cachedData = await resp.json();
+
+      map.addSource('lifts', { type:'geojson', data: cachedData });
+      map.addLayer({ id:'lifts-lines', type:'line', source:'lifts', filter:['==', ['geometry-type'], 'LineString'], paint:{ 'line-color':[ 'match', ['get','aerialway'], 'cable_car','#d73027','funitel','#8c510a','gondola','#f46d43','mixed_lift','#fdae61','chair_lift','#4575b4','drag_lift','#7b3294','t_bar','#7b3294','j_bar','#a6d96a','platter','#66bd63','magic_carpet','#1a9850','rope_tow','#999','#222' ], 'line-width': 2.5, 'line-opacity': 0.9 } });
+      map.addLayer({ id:'lift-stations', type:'circle', source:'lifts', filter:['all',['==',['geometry-type'],'Point'],['==',['get','aerialway'],'station']], paint:{ 'circle-radius': 5, 'circle-color':'#fff', 'circle-stroke-width':2, 'circle-stroke-color':'#000' } });
+      map.addLayer({ id:'resorts', type:'symbol', source:'lifts', filter:['all',['==',['geometry-type'],'Point'],['==',['get','feature_type'],'resort']], layout:{ 'text-field':['get','name'], 'text-size':12, 'text-offset':[0,1.2], 'text-anchor':'top' }, paint:{ 'text-halo-color':'#fff','text-halo-width':1 } });
+
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true });
+      map.on('click','lifts-lines', (e)=> showPopup(e, popup));
+      map.on('click','lift-stations', (e)=> showPopup(e, popup));
+
+      document.getElementById('export').onclick = ()=>{
+        const blob = new Blob([JSON.stringify(cachedData,null,2)],{type:'application/json'});
+        const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='remontees_3vallees.geojson'; a.click(); URL.revokeObjectURL(url);
+      };
+    });
+
+    function showPopup(e, popup){
+      const p = e.features[0].properties || {}; const Ls=[];
+      if(p.name) Ls.push(`<strong>${p.name}</strong>`);
+      if(p.aerialway) Ls.push(`Type : <code>${p.aerialway}</code>`);
+      if(p["aerialway:capacity"]) Ls.push(`Capacité : ${p["aerialway:capacity"]} pers/h`);
+      if(p["aerialway:occupancy"]) Ls.push(`Occupants : ${p["aerialway:occupancy"]}`);
+      if(p.duration) Ls.push(`Durée : ${p.duration}`);
+      if(p.operator) Ls.push(`Exploitant : ${p["operator"]}`);
+      if(p.ref) Ls.push(`Réf. : ${p.ref}`);
+      popup.setLngLat(e.lngLat).setHTML(Ls.join('<br/>')||'').addTo(map);
+    }
+  </script>
+</body>
+</html>
